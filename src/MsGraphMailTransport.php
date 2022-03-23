@@ -83,10 +83,7 @@ class MsGraphMailTransport extends AbstractTransport
             throw CouldNotReachService::unknownError();
         }
     }
-    public function __toString(): string
-    {
-        return 'microsoft-graph';
-    }
+
     /**
      * Transforms given Symfony message instance into
      * Microsoft Graph message object
@@ -232,5 +229,15 @@ class MsGraphMailTransport extends AbstractTransport
             // An unknown error occurred
             throw CouldNotReachService::unknownError();
         }
+    }
+
+    /**
+     * Get the string representation of the transport.
+     *
+     * @return string
+     */
+    public function __toString(): string
+    {
+        return 'microsoft-graph';
     }
 }
