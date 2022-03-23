@@ -19,11 +19,12 @@
     }
   ],
   "require": {
-    "php": ">=7.4",
+    "php": ">=8.0",
     "ext-json": "*",
     "guzzlehttp/guzzle": "^7.0",
     "illuminate/mail": "^8.0",
-    "illuminate/support": "^8.0"
+    "illuminate/support": "^8.0",
+    "laravel/laravel": "^9.0"
   },
   "autoload": {
     "psr-4": {

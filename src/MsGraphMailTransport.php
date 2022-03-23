@@ -7,18 +7,18 @@ use GuzzleHttp\Client;
 use GuzzleHttp\ClientInterface;
 use GuzzleHttp\Exception\BadResponseException;
 use GuzzleHttp\Exception\ConnectException;
-use Illuminate\Mail\Transport\Transport;
 use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\Str;
 use LaravelMsGraphMail\Exceptions\CouldNotGetToken;
 use LaravelMsGraphMail\Exceptions\CouldNotReachService;
 use LaravelMsGraphMail\Exceptions\CouldNotSendMail;
-use Swift_Mime_Attachment;
-use Swift_Mime_EmbeddedFile;
-use Swift_Mime_SimpleMessage;
+use Symfony\Component\Mailer\SentMessage;
+use Symfony\Component\Mailer\Transport\AbstractTransport;
+use Symfony\Component\Mime\MessageConverter;
+use Symfony\Component\Mime\Part\DataPart;
 use Throwable;
 
-class MsGraphMailTransport extends Transport {
+class MsGraphMailTransport extends AbstractTransport
+{
 
     /**
      * @var string
@@ -45,34 +45,33 @@ class MsGraphMailTransport extends Transport {
      * @param array $config
      * @param ClientInterface|null $client
      */
-    public function __construct(array $config, ClientInterface $client = null) {
+    public function __construct(array $config, ClientInterface $client = null)
+    {
         $this->config = $config;
         $this->http = $client ?? new Client();
     }
 
     /**
      * Send given email message
-     * @param Swift_Mime_SimpleMessage $message
+     * @param SentMessage $message
      * @param null $failedRecipients
      * @return int
      * @throws CouldNotSendMail
      * @throws CouldNotReachService
      */
-    public function send(Swift_Mime_SimpleMessage $message, &$failedRecipients = null): int {
-        $this->beforeSendPerformed($message);
+    public function doSend(SentMessage $message): void
+    {
+
         $payload = $this->getPayload($message);
         $url = str_replace('{from}', urlencode($payload['from']['emailAddress']['address']), $this->apiEndpoint);
 
         try {
-            $this->http->post($url, [
+            $response = $this->http->post($url, [
                 'headers' => $this->getHeaders(),
                 'json' => [
                     'message' => $payload,
                 ],
             ]);
-
-            $this->sendPerformed($message);
-            return $this->numberOfRecipients($message);
         } catch (BadResponseException $e) {
             // The API responded with 4XX or 5XX error
             if ($e->hasResponse()) $response = json_decode((string)$e->getResponse()->getBody());
@@ -84,18 +83,23 @@ class MsGraphMailTransport extends Transport {
             throw CouldNotReachService::unknownError();
         }
     }
-
+    public function __toString(): string
+    {
+        return 'microsoft-graph';
+    }
     /**
-     * Transforms given SwiftMailer message instance into
+     * Transforms given Symfony message instance into
      * Microsoft Graph message object
-     * @param Swift_Mime_SimpleMessage $message
+     * @param SentMessage $message
      * @return array
      */
-    protected function getPayload(Swift_Mime_SimpleMessage $message): array {
+    protected function getPayload(SentMessage $message): array
+    {
+        $message = MessageConverter::toEmail($message->getOriginalMessage());
+
         $from = $message->getFrom();
         $priority = $message->getPriority();
-        $attachments = $message->getChildren();
-
+        $attachments = $message->getAttachments();
         return array_filter([
             'subject' => $message->getSubject(),
             'sender' => $this->toRecipientCollection($from)[0],
@@ -106,8 +110,8 @@ class MsGraphMailTransport extends Transport {
             'bccRecipients' => $this->toRecipientCollection($message->getBcc()),
             'importance' => $priority === 3 ? 'Normal' : ($priority < 3 ? 'Low' : 'High'),
             'body' => [
-                'contentType' => Str::contains($message->getContentType(), ['text', 'plain']) ? 'text' : 'html',
-                'content' => $message->getBody(),
+                'contentType' => ($message->getHtmlBody()) ? 'html' : 'text',
+                'content' => ($message->getHtmlBody()) ? $message->getHtmlBody() : $message->getTextBody(),
             ],
             'attachments' => $this->toAttachmentCollection($attachments),
         ]);
@@ -119,7 +123,8 @@ class MsGraphMailTransport extends Transport {
      * @param array|string $recipients
      * @return array
      */
-    protected function toRecipientCollection($recipients): array {
+    protected function toRecipientCollection($recipients): array
+    {
         $collection = [];
 
         // If the provided list is empty
@@ -141,42 +146,39 @@ class MsGraphMailTransport extends Transport {
             return $collection;
         }
 
-        foreach ($recipients as $address => $name) {
+        foreach ($recipients as $index => $recipient) {
+
             $collection[] = [
                 'emailAddress' => [
-                    'name' => $name,
-                    'address' => $address,
+                    'name' => $recipient->getName(),
+                    'address' => $recipient->getAddress(),
                 ],
             ];
         }
-
         return $collection;
     }
 
     /**
-     * Transforms given SwiftMailer children into
+     * Transforms given SymfonyMailer children into
      * Microsoft Graph attachment collection
      * @param $attachments
      * @return array
      */
-    protected function toAttachmentCollection($attachments): array {
+    protected function toAttachmentCollection($attachments): array
+    {
         $collection = [];
 
         foreach ($attachments as $attachment) {
-            if (!$attachment instanceof Swift_Mime_Attachment) {
+            if (!$attachment instanceof DataPart) {
                 continue;
             }
-
             $collection[] = [
-                'name' => $attachment->getFilename(),
-                'contentId' => $attachment->getId(),
-                'contentType' => $attachment->getContentType(),
+                'name' => $attachment->getPreparedHeaders()->getHeaderParameter('Content-Disposition', 'filename'),
+                'contentType' => $attachment->getPreparedHeaders()->getHeaderParameter('Content-Type', 'value'),
                 'contentBytes' => base64_encode($attachment->getBody()),
                 'size' => strlen($attachment->getBody()),
                 '@odata.type' => '#microsoft.graph.fileAttachment',
-                'isInline' => $attachment instanceof Swift_Mime_EmbeddedFile,
             ];
-
         }
 
         return $collection;
@@ -188,7 +190,8 @@ class MsGraphMailTransport extends Transport {
      * @throws CouldNotGetToken
      * @throws CouldNotReachService
      */
-    protected function getHeaders(): array {
+    protected function getHeaders(): array
+    {
         return [
             'Accept' => 'application/json',
             'Authorization' => 'Bearer ' . $this->getAccessToken(),
@@ -201,7 +204,8 @@ class MsGraphMailTransport extends Transport {
      * @throws CouldNotReachService
      * @throws CouldNotGetToken
      */
-    protected function getAccessToken(): string {
+    protected function getAccessToken(): string
+    {
         try {
             return Cache::remember('mail-msgraph-accesstoken', 45, function () {
                 $url = str_replace('{tenant}', $this->config['tenant'] ?? 'common', $this->tokenEndpoint);
@@ -229,5 +233,4 @@ class MsGraphMailTransport extends Transport {
             throw CouldNotReachService::unknownError();
         }
     }
-
 }
