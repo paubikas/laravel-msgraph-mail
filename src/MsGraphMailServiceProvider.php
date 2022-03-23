@@ -1,10 +1,10 @@
 <?php
 
 
-namespace LaravelMsGraphMail;
+namespace Poseidonphp\LaravelMsGraphMail;
 
 use Illuminate\Support\ServiceProvider;
-use LaravelMsGraphMail\Exceptions\CouldNotSendMail;
+use Poseidonphp\LaravelMsGraphMail\Exceptions\CouldNotSendMail;
 
 class MsGraphMailServiceProvider extends ServiceProvider {
 
