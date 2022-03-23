@@ -1,13 +1,13 @@
 <?php
 
-namespace Poseidonphp\LaravelMsGraphMail;
+namespace LaravelMsGraphMail;
 
 use GuzzleHttp\Exception\BadResponseException;
 use GuzzleHttp\Exception\ConnectException;
 use Illuminate\Support\Facades\Cache;
-use Poseidonphp\LaravelMsGraphMail\Exceptions\CouldNotGetToken;
-use Poseidonphp\LaravelMsGraphMail\Exceptions\CouldNotReachService;
-use Poseidonphp\LaravelMsGraphMail\Exceptions\CouldNotSendMail;
+use LaravelMsGraphMail\Exceptions\CouldNotGetToken;
+use LaravelMsGraphMail\Exceptions\CouldNotReachService;
+use LaravelMsGraphMail\Exceptions\CouldNotSendMail;
 use Psr\EventDispatcher\EventDispatcherInterface;
 use Psr\Log\LoggerInterface;
 use Symfony\Component\HttpClient\HttpClient;

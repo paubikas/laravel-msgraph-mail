@@ -1,7 +1,7 @@
 <?php
 
 
-namespace Poseidonphp\LaravelMsGraphMail\Exceptions;
+namespace LaravelMsGraphMail\Exceptions;
 
 
 use Exception;
