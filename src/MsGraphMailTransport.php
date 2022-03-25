@@ -44,6 +44,7 @@ class MsGraphMailTransport extends AbstractApiTransport
         $this->secret = $config['secret'];
         $this->tenant_id = $config['tenant'];
         $this->client_id = $config['client'];
+        $this->saveToSentItems = $config['saveToSentItems'];
         $this->http = $client ?? HttpClient::create();
 
         parent::__construct($client, $dispatcher, $logger);
@@ -59,7 +60,7 @@ class MsGraphMailTransport extends AbstractApiTransport
             'headers' => $this->getHeaders(),
             'json' => [
                 'message' => $rawPayload,
-                'saveToSentItems' => array_key_exists('saveToSentItems', $this->config) ? $this->config['saveToSentItems'] : true
+                'saveToSentItems' => ($this->saveToSentItems) ? $this->saveToSentItems : true
             ]
         ]);
 
